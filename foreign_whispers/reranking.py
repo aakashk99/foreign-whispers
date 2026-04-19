@@ -7,6 +7,8 @@ SegmentMetrics.  The translation re-ranking function is a **student assignment**
 
 import dataclasses
 import logging
+import math
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -95,72 +97,110 @@ def analyze_failures(report: dict) -> FailureAnalysis:
         suggested_change="Review individual outlier segments if any remain.",
     )
 
-
-def get_shorter_translations(
-    source_text: str,
-    baseline_es: str,
-    target_duration_s: float,
-    context_prev: str = "",
-    context_next: str = "",
-) -> list[TranslationCandidate]:
-    """Return shorter translation candidates that fit *target_duration_s*.
-
-    .. admonition:: Student Assignment — Duration-Aware Translation Re-ranking
-
-       This function is intentionally a **stub that returns an empty list**.
-       Your task is to implement a strategy that produces shorter
-       target-language translations when the baseline translation is too long
-       for the time budget.
-
-       **Inputs**
-
-       ============== ======== ==================================================
-       Parameter      Type     Description
-       ============== ======== ==================================================
-       source_text    str      Original source-language segment text
-       baseline_es    str      Baseline target-language translation (from argostranslate)
-       target_duration_s float Time budget in seconds for this segment
-       context_prev   str      Text of the preceding segment (for coherence)
-       context_next   str      Text of the following segment (for coherence)
-       ============== ======== ==================================================
-
-       **Outputs**
-
-       A list of ``TranslationCandidate`` objects, sorted shortest first.
-       Each candidate has:
-
-       - ``text``: the shortened target-language translation
-       - ``char_count``: ``len(text)``
-       - ``brevity_rationale``: short note on what was changed
-
-       **Duration heuristic**: target-language TTS produces ~15 characters/second
-       (or ~4.5 syllables/second for Romance languages).  So a 3-second budget
-       ≈ 45 characters.
-
-       **Approaches to consider** (pick one or combine):
-
-       1. **Rule-based shortening** — strip filler words, use shorter synonyms
-          from a lookup table, contract common phrases
-          (e.g. "en este momento" → "ahora").
-       2. **Multiple translation backends** — call argostranslate with
-          paraphrased input, or use a second translation model, then pick
-          the shortest output that preserves meaning.
-       3. **LLM re-ranking** — use an LLM (e.g. via an API) to generate
-          condensed alternatives.  This was the previous approach but adds
-          latency, cost, and a runtime dependency.
-       4. **Hybrid** — rule-based first, fall back to LLM only for segments
-          that still exceed the budget.
-
-       **Evaluation criteria**: the caller selects the candidate whose
-       ``len(text) / 15.0`` is closest to ``target_duration_s``.
-
-    Returns:
-        Empty list (stub).  Implement to return ``TranslationCandidate`` items.
+def get_shorter_translations(source_text: str, baseline_es: str, target_duration_s: float) -> list[dict]:
     """
-    logger.info(
-        "get_shorter_translations called for %.1fs budget (%d chars baseline) — "
-        "returning empty list (student assignment stub).",
-        target_duration_s,
-        len(baseline_es),
-    )
-    return []
+    Generates shorter Spanish translation candidates that fit within a TTS duration budget.
+    Target budget is approximately 15 chars/second for Spanish.
+    
+    Approaches used:
+    1. Rule-based abbreviation and filler removal (Fast, safe)
+    2. Shorter synonym substitution
+    3. Multi-backend/LLM fallback (Scaffolded for integration)
+    """
+    # Calculate the maximum allowable characters for the segment
+    target_chars = math.floor(target_duration_s * 15.0)
+    candidates = []
+
+    # ---------------------------------------------------------
+    # 0. Baseline Check
+    # ---------------------------------------------------------
+    if len(baseline_es) <= target_chars:
+        # If the original translation already fits, return it immediately
+        return [{
+            "text": baseline_es,
+            "char_count": len(baseline_es),
+            "brevity_rationale": "Baseline already fits within the duration budget."
+        }]
+
+    # Include the baseline as the fallback of last resort
+    candidates.append({
+        "text": baseline_es,
+        "char_count": len(baseline_es),
+        "brevity_rationale": "Baseline (Exceeds budget)"
+    })
+
+    # ---------------------------------------------------------
+    # 1. Rule-Based Truncation & Synonym Replacement
+    # ---------------------------------------------------------
+    # Mapping of verbose Spanish phrases to shorter equivalents or removals
+    shortening_rules = {
+        # Fillers that can usually be dropped without changing semantic meaning
+        r"\b(bueno|pues|entonces|así que)\b,?\s*": "",
+        r"\b(es decir|o sea|en realidad|de hecho)\b,?\s*": "",
+        r"\b(te digo que|sabes que)\b\s*": "",
+        
+        # Shorter synonym substitutions
+        r"\bpor supuesto\b": "claro",
+        r"\bsin embargo\b": "pero",
+        r"\bno obstante\b": "pero",
+        r"\bcon el fin de\b": "para",
+        r"\ba pesar de que\b": "aunque",
+        r"\bdebido a que\b": "porque",
+        r"\ben el momento en que\b": "cuando",
+        r"\bde manera que\b": "así",
+        r"\btiene la capacidad de\b": "puede",
+        r"\bse lleva a cabo\b": "se hace",
+    }
+    
+    rule_based_text = baseline_es
+    for pattern, replacement in shortening_rules.items():
+        rule_based_text = re.sub(pattern, replacement, rule_based_text, flags=re.IGNORECASE)
+        
+    # Cleanup extra spaces and rogue commas left behind by regex replacements
+    rule_based_text = re.sub(r'\s+', ' ', rule_based_text).strip()
+    rule_based_text = re.sub(r'^,\s*', '', rule_based_text)
+    
+    if len(rule_based_text) < len(baseline_es):
+        candidates.append({
+            "text": rule_based_text,
+            "char_count": len(rule_based_text),
+            "brevity_rationale": "Rule-based: Removed conversational fillers and substituted verbose phrases."
+        })
+
+    # ---------------------------------------------------------
+    # 2. Multi-Backend / LLM Generation (Scaffolding)
+    # ---------------------------------------------------------
+    # If the rule-based approach didn't get us under the budget, an LLM prompt 
+    # is the best way to deeply restructure the sentence.
+    
+    # Example integration code (assuming a local LLM client is imported):
+    """
+    if len(rule_based_text) > target_chars:
+        try:
+            prompt = (
+                f"Translate this English text to Spanish in under {target_chars} characters. "
+                f"Be direct and concise. Preserve the core meaning.\\n"
+                f"English: '{source_text}'"
+            )
+            # llm_candidate = local_llm_client.generate(prompt)
+            
+            # if len(llm_candidate) < len(baseline_es):
+            #     candidates.append({
+            #         "text": llm_candidate,
+            #         "char_count": len(llm_candidate),
+            #         "brevity_rationale": "LLM: Instructed specifically for strict conciseness."
+            #     })
+        except Exception as e:
+            pass # Fall back to rule-based candidates if LLM fails
+    """
+
+    # ---------------------------------------------------------
+    # 3. Selection & Return
+    # ---------------------------------------------------------
+    # Filter out any candidates that ended up empty during processing
+    valid_candidates = [c for c in candidates if c["char_count"] > 0]
+    
+    # Sort candidates by length (shortest first)
+    valid_candidates.sort(key=lambda x: x["char_count"])
+
+    return valid_candidates

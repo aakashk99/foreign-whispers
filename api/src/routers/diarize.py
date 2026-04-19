@@ -45,23 +45,52 @@ async def diarize_endpoint(video_id: str):
 
     # ---- YOUR CODE HERE ----
     # Step 1: Extract audio from video
-    #   video_path = settings.videos_dir / f"{title}.mp4"
-    #   audio_path = diar_dir / f"{title}.wav"
-    #   Use subprocess.run to call:
-    #     ffmpeg -i <video_path> -vn -acodec pcm_s16le -ar 16000 -y <audio_path>
-    #
+    video_path = settings.videos_dir / f"{title}.mp4"
+    audio_path = diar_dir / f"{title}.wav"
+    
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail=f"Source video not found at {video_path}")
+
+    try:
+        # Use subprocess to extract a 16kHz WAV file required by pyannote
+        subprocess.run(
+            [
+                "ffmpeg", 
+                "-i", str(video_path), 
+                "-vn", 
+                "-acodec", "pcm_s16le", 
+                "-ar", "16000", 
+                "-y", 
+                str(audio_path)
+            ],
+            check=True,
+            capture_output=True
+        )
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Audio extraction failed: {e.stderr.decode()}"
+        )
+
     # Step 2: Run diarization
-    #   diar_segments = _alignment_service.diarize(str(audio_path))
-    #
+    try:
+        # Utilizing the injected AlignmentService rather than standalone functions
+        diar_segments = _alignment_service.diarize(str(audio_path))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Diarization service error: {str(e)}")
+
     # Step 3: Extract unique speakers
-    #   speakers = sorted(set(s["speaker"] for s in diar_segments))
-    #
+    speakers = sorted(set(s["speaker"] for s in diar_segments))
+
     # Step 4: Cache result
-    #   result = {"speakers": speakers, "segments": diar_segments}
-    #   diar_path.write_text(json.dumps(result))
-    #
+    result = {"speakers": speakers, "segments": diar_segments}
+    diar_path.write_text(json.dumps(result, indent=2))
+
     # Step 5: Return DiarizeResponse
-    #   return DiarizeResponse(video_id=video_id, speakers=speakers, segments=diar_segments)
-    #
-    raise HTTPException(status_code=501, detail="Diarization not yet implemented")
+    return DiarizeResponse(
+        video_id=video_id, 
+        speakers=speakers, 
+        segments=diar_segments, 
+        skipped=False
+    )
     # ---- END YOUR CODE ----

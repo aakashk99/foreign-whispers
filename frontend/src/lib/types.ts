@@ -49,7 +49,7 @@ export interface StitchResponse {
   video_path: string;
 }
 
-export type PipelineStage = "download" | "transcribe" | "translate" | "tts" | "stitch";
+export type PipelineStage = "download" | "transcribe" | 'diarize' | "translate" | "tts" | "stitch";
 export type StageStatus = "pending" | "active" | "complete" | "skipped" | "error";
 
 export interface StageState {
