@@ -1,7 +1,7 @@
 import type {
   DownloadResponse,
   TranscribeResponse,
-  DiarizeResponse
+  DiarizeResponse,
   TranslateResponse,
   TTSResponse,
   StitchResponse,
