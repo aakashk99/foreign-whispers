@@ -7,7 +7,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.src.core.config import settings
-from api.src.routers import diarize
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +92,6 @@ def create_app() -> FastAPI:
     app.include_router(translate_router)
     app.include_router(tts_router)
     app.include_router(stitch_router)
-    app.include_router(diarize.router)
     from api.src.routers.eval import router as eval_router
     app.include_router(eval_router)
 

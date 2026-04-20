@@ -11,7 +11,6 @@ from fastapi.responses import FileResponse
 from api.src.core.config import settings
 from api.src.core.dependencies import resolve_title
 from api.src.services.tts_service import TTSService
-from foreign_whispers.voice_resolution import resolve_speaker_wav
 
 router = APIRouter(prefix="/api")
 
@@ -28,7 +27,6 @@ async def tts_endpoint(
     request: Request,
     config: str = Query(..., pattern=r"^c-[0-9a-f]{7}$"),
     alignment: bool = Query(False),
-    speaker_wav: str | None = Query(None, description="Explicit voice override"),
 ):
     """Generate TTS audio for a translated transcript.
 
@@ -57,40 +55,16 @@ async def tts_endpoint(
             "config": config,
         }
 
-    source_path = trans_dir / f"{title}.json"
-    if not source_path.exists():
-        raise HTTPException(status_code=404, detail="Translation file not found")
+    source_path = str(trans_dir / f"{title}.json")
 
-    # Step 1: Read the translation file to extract segments and target language
-    trans_data = json.loads(source_path.read_text())
-    segments = trans_data.get("segments", [])
-    target_lang = trans_data.get("language", "es")
-    
-    # Step 2: Extract unique speakers and build the voice map
-    unique_speakers = set(seg.get("speaker", "SPEAKER_00") for seg in segments)
-    
-    voice_map = {}
-    for spk in unique_speakers:
-        if speaker_wav:
-            voice_map[spk] = speaker_wav
-        else:
-            voice_map[spk] = resolve_speaker_wav(settings.speakers_dir, target_lang, spk)
-
-    # Step 3: Pass the voice map to the TTS service
     await _run_in_threadpool(
-        None, 
-        svc.text_file_to_speech, 
-        str(source_path), 
-        str(audio_dir), 
-        alignment=alignment,
-        voice_map=voice_map
+        None, svc.text_file_to_speech, source_path, str(audio_dir), alignment=alignment
     )
 
     return {
         "video_id": video_id,
         "audio_path": str(wav_path),
         "config": config,
-        "voice_map": voice_map,
     }
 
 

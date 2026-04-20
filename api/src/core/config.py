@@ -43,12 +43,6 @@ class Settings(BaseSettings):
         return self.data_dir / "videos"
 
     @property
-    def diarizations_dir(self) -> Path:
-        path = self.pipeline_data_dir / "api" / "diarizations"
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    @property
     def youtube_captions_dir(self) -> Path:
         return self.data_dir / "youtube_captions"
 
