@@ -118,13 +118,16 @@ No markdown, no extra keys, no explanation outside the array."""
             "max_tokens": 1000,
             "messages": [{"role": "user", "content": prompt}],
         }).encode()
-
-        req = urllib.request.Request(
-            "https://api.anthropic.com/v1/messages",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
+	req = urllib.request.Request(
+	    "https://api.anthropic.com/v1/messages",
+	    data=payload,
+	    headers={
+		"Content-Type": "application/json",
+		"x-api-key": os.environ.get("ANTHROPIC_API_KEY", ""),
+		"anthropic-version": "2023-06-01",
+	    },
+	    method="POST",
+	)
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read())
 
