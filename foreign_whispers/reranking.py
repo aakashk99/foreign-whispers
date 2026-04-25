@@ -83,7 +83,7 @@ def _llm_candidates(
     context_prev: str = "",
     context_next: str = "",
 ) -> list[TranslationCandidate]:
-    """Call the Anthropic API to generate condensed translation candidates.
+    """Call the Gemini API to generate condensed translation candidates.
 
     The LLM infers the target language from *baseline_translation*, so this
     works for any language without any language-specific configuration.
@@ -114,28 +114,41 @@ Example: [{{"text": "...", "rationale": "removed filler"}}]
 No markdown, no extra keys, no explanation outside the array."""
 
     try:
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        if not api_key:
+            logger.warning("GEMINI_API_KEY not set — skipping LLM re-ranking.")
+            return []
+
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"gemini-2.0-flash:generateContent?key={api_key}"
+        )
+
         payload = json.dumps({
-            "model": "claude-sonnet-4-20250514",
-            "max_tokens": 1000,
-            "messages": [{"role": "user", "content": prompt}],
-        }).encode()
-        req = urllib.request.Request(
-            "https://api.anthropic.com/v1/messages",
-            data=payload,
-            headers={
-                "Content-Type": "application/json",
-                "x-api-key": os.environ.get("ANTHROPIC_API_KEY", ""),
-                "anthropic-version": "2023-06-01",
+            "contents": [
+                {"role": "user", "parts": [{"text": prompt}]}
+            ],
+            "generationConfig": {
+                "temperature": 0.3,
+                "maxOutputTokens": 1024,
             },
+        }).encode()
+
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read())
 
-        raw_text = "".join(
-            block.get("text", "")
-            for block in data.get("content", [])
-            if block.get("type") == "text"
+        # Gemini response: data["candidates"][0]["content"]["parts"][0]["text"]
+        raw_text = (
+            data.get("candidates", [{}])[0]
+                .get("content", {})
+                .get("parts", [{}])[0]
+                .get("text", "")
         )
         raw_text = re.sub(r"```(?:json)?", "", raw_text).strip()
         items = json.loads(raw_text)
