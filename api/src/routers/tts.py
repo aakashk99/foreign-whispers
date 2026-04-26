@@ -153,7 +153,6 @@ async def tts_endpoint(
         source_path,
         str(audio_dir),
         alignment=alignment,
-        speaker_wav=resolved_wav,
         speaker_wav_map=speaker_wav_map,
     )
 

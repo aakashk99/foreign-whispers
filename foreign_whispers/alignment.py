@@ -65,10 +65,7 @@ def _estimate_duration(text: str) -> float:
     clause_pauses       = sum(text.count(p) for p in ",;:")
     pauses = 0.25 * sentence_boundaries + 0.12 * clause_pauses
 
-    # Fixed utterance-initial articulation onset
-    lead_in = 0.10
-
-    return max(0.15, base + pauses + lead_in)
+    return max(0.15, base + pauses)
 
 
 @dataclasses.dataclass
