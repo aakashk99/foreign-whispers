@@ -101,7 +101,6 @@ class TTSService:
         output_path: str,
         *,
         alignment: bool | None = None,
-        speaker_wav: str | None = None,
         speaker_wav_map: dict[str, str] | None = None,
     ) -> None:
         """Generate time-aligned TTS audio from a translated JSON transcript.
@@ -110,9 +109,6 @@ class TTSService:
             source_path:      Path to the translated segments JSON.
             output_path:      Directory where the output WAV will be written.
             alignment:        Enable temporal alignment (clamped stretch).
-            speaker_wav:      Single reference WAV for all segments (relative
-                              path for the Chatterbox ``/app/voices/`` mount).
-                              Ignored when *speaker_wav_map* is provided.
             speaker_wav_map:  Per-speaker ``{speaker_label: relative_wav_path}``
                               mapping built from diarization data.  Takes
                               precedence over *speaker_wav*.
@@ -122,7 +118,6 @@ class TTSService:
             output_path,
             self.tts_engine,
             alignment=alignment,
-            speaker_wav=speaker_wav,
             speaker_wav_map=speaker_wav_map,
         )
 
