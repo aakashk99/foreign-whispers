@@ -247,3 +247,7 @@ cd frontend && pnpm install && pnpm dev
 - ffmpeg (system-wide)
 - deno (for yt-dlp YouTube extraction)
 - NVIDIA GPU recommended for Whisper + Chatterbox inference
+
+### Proof of Concept
+
+Proof of Concept of the working pipeline with Diarization + Alignment can be found in the POC folder. Due to resource constraints a Colab-Based pipeline was used to test the implementation. This is also located within the POC folder.
